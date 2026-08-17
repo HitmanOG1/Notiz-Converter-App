@@ -4,8 +4,8 @@
 
 Lokale Notizen‑App (Deutsch) mit integriertem Audio/Video‑Konverter für Windows.
 
-Features
-- Moderner Desktop‑UI (Flet)
+Kurzüberblick
+- Modernes Desktop‑UI mit Flet
 - Markdown‑Editor mit Live‑Vorschau
 - Volltextsuche (SQLite FTS5, Fallback auf LIKE)
 - Tags, Anhänge und Revisionen
@@ -14,35 +14,169 @@ Features
 
 Wichtig: ffmpeg wird aus Lizenz‑/Größen‑Gründen nicht im Repo gespeichert. Lade eine passende `ffmpeg.exe` herunter und lege sie neben der fertigen `.exe` oder gib den Pfad in den Einstellungen an.
 
-Schnellstart (Entwicklung)
+Inhalt dieses READMEs
+- Voraussetzungen
+- Installation (Entwicklung)
+- App lokal starten (Entwicklung)
+- Master‑Passwort (Verschlüsselung)
+- EXE (Windows) lokal erzeugen — Schritt für Schritt
+- GitHub Actions — wie der CI‑Build funktioniert und wie du Logs/Artefakte findest
+- Icon erzeugen
+- Häufige Fehler & Troubleshooting
+- Code‑Signing (optional)
+- Nächste Schritte / Empfehlungen
+- Kontakt & Support
 
-1) Klone das Repo:
+
+Voraussetzungen
+- Windows 10/11 (für EXE) oder plattformunabhängig für Entwicklung
+- Python 3.10+
+- Git
+- (Für EXE) PyInstaller
+- ffmpeg (ffmpeg.exe) für Konvertierungen
+
+
+Installation (Entwicklung)
+1) Repo klonen
 
    git clone https://github.com/HitmanOG1/Notiz-Converter-App.git
    cd Notiz-Converter-App
 
-2) Virtuelle Umgebung und Abhängigkeiten:
+2) Virtuelle Umgebung erstellen und aktivieren
 
    python -m venv .venv
-   .venv\\Scripts\\activate
+   .venv\Scripts\activate
+
+3) Abhängigkeiten installieren
+
+   pip install --upgrade pip
    pip install -r requirements.txt
 
-3) App starten:
+
+App lokal starten (Entwicklung)
 
    python app.py
 
-Build (Windows)
+Die App öffnet ein Flet Desktop‑Fenster. Falls Module fehlen, installiere sie mit pip.
 
-- Die GitHub Actions Workflow `build-windows.yml` versucht bei Push eine EXE mit PyInstaller zu bauen und lädt ein Release‑Draft mit dem Artefakt hoch. Lokales Testen ist empfohlen.
-- Um lokal eine EXE zu erzeugen:
 
-   pip install pyinstaller
-   pyinstaller --onefile --add-data "ffmpeg.exe;." --name NotizConverterApp app.py
+Master‑Passwort (Verschlüsselung)
+- Die App unterstützt optionale Verschlüsselung für Notizen.
+- Ein Master‑Passwort wird sicher per PBKDF2 + Fernet abgeleitet und in der lokalen DB als Salt/Verifier gespeichert.
 
-Icon
+Master setzen (einmalig):
 
-- Ein SVG‑Icon liegt in `assets/icon.svg`. Ein kleines Hilfs‑Script `tools/generate_icon.py` erzeugt ein `assets/icon.ico` aus der SVG, falls du das lokal möchtest.
+   from crypto import generate_master
+   generate_master("DeinSicheresPasswort")
 
-Support
+Verifizieren / Fernet erhalten (im Code):
 
-Wenn der Workflow fehlschlägt, öffne die Actions‑Seite in deinem Repo, lade die Logs herunter und sende sie mir — ich helfe beim Debuggen.
+   from crypto import verify_master, get_fernet
+   verify_master("DeinSicheresPasswort")
+   f = get_fernet("DeinSicheresPasswort")
+
+WICHTIG: Wenn du das Master‑Passwort verlierst, sind verschlüsselte Notizen NICHT wiederherstellbar.
+
+
+EXE (Windows) lokal erzeugen — Schritt für Schritt
+
+1) Voraussetzungen
+- Python 3.10+ installiert & aktivierte virtuelle Umgebung
+- pyinstaller installiert: `pip install pyinstaller`
+- ffmpeg.exe heruntergeladen und verfügbar (siehe unten)
+
+2) ffmpeg herunterladen
+- Empfohlene Quellen (statische Builds):
+  - https://www.gyan.dev/ffmpeg/builds/
+  - https://ffmpeg.org/download.html
+- Entpacke und kopiere `ffmpeg.exe` ins Projektverzeichnis (oder merke dir den Pfad).
+
+3) EXE bauen (einfach)
+
+   pyinstaller --onefile --add-data "ffmpeg.exe;." --noconfirm --name NotizConverterApp app.py
+
+Erläuterung wichtiger Flags:
+- --onefile: erzeugt eine einzelne ausführbare Datei (.exe)
+- --add-data "ffmpeg.exe;.": packt ffmpeg.exe in das Bundle (Windows: getrennte Pfadangabe beachten)
+- --noconfirm: überschreibt alte Builds ohne Nachfrage
+- --name: Name der Ausgabedatei
+
+4) Ergebnis
+- Die fertige EXE liegt in `dist\NotizConverterApp.exe`.
+- Teste die EXE lokal: kopiere bei Bedarf eine ffmpeg.exe ins gleiche Verzeichnis oder passe die Einstellungen in der App an.
+
+
+GitHub Actions — CI Build & Artefakte
+
+Was der Workflow macht
+- Läuft bei Push auf `main` oder `master`
+- Installiert Python, Abhängigkeiten und PyInstaller
+- Lädt einen statischen ffmpeg‑Build herunter (Workflow versucht, ffmpeg.exe zu finden)
+- Baut mit PyInstaller eine Einzeldatei‑EXE
+- Packt EXE + ffmpeg in ein ZIP und erstellt einen Release‑Draft mit dem ZIP als Asset
+
+Logs & Artefakte ansehen
+1) Gehe zur Actions‑Seite des Repos: https://github.com/HitmanOG1/Notiz-Converter-App/actions
+2) Wähle den letzten Run der Workflow‑Anwendung `Build Windows EXE and Release`
+3) Öffne die Schritte und schaue dir die ausführlichen Logs an. Bei Fehlern kopiere die relevanten Logabschnitte hierher — ich helfe beim Interpretieren.
+4) Wenn der Workflow erfolgreich war, findest du das ZIP als Release‑Asset im Draft Release (Releases → Drafts) oder als herunterladbares Artefakt im Workflow‑Run (manchmal beide).
+
+Tipps für Debugging von Actions‑Builds
+- Fehlender ffmpeg: Workflow konnte die ZIP nicht entpacken oder ffmpeg.exe nicht finden. Prüfe den Schritt "Download ffmpeg" in den Logs.
+- PyInstaller Fehlermeldungen: oft fehlen Module oder Hooks (z. B. Flet). Suche nach Tracebacks in den Logs. Häufige Lösung: explizite hidden‑imports oder zusätzliche Dateien via --add-data.
+- Antivirus / Windows Defender: kann die erzeugte EXE blockieren. Signieren hilft (siehe weiter unten).
+
+
+Icon erzeugen
+- Ein SVG‑Icon liegt in `assets/icon.svg`.
+- Falls du eine .ico brauchst, benutze das Script `tools/generate_icon.py` (benötigt cairosvg + pillow):
+
+   pip install cairosvg pillow
+   python tools/generate_icon.py
+
+- Das Script erzeugt `assets/icon.ico` (mehrere Auflösungen). Du kannst diese .ico dann z. B. mit PyInstaller via --icon=assets/icon.ico einbinden.
+
+
+Häufige Fehler & Troubleshooting
+
+1) Fehler: "ffmpeg nicht gefunden"
+- Ursache: ffmpeg.exe nicht im PATH oder nicht neben der EXE
+- Lösung: lade ffmpeg herunter und lege ffmpeg.exe ins gleiche Verzeichnis wie die EXE oder setze PATH.
+
+2) Fehler beim Import von cryptography oder PBKDF2
+- Ursache: fehlende Abhängigkeiten oder veraltete wheel/Compiler auf Windows
+- Lösung: pip install --upgrade pip setuptools wheel; pip install -r requirements.txt
+
+3) PyInstaller: fehlende Modules / "ModuleNotFoundError"
+- Ursache: PyInstaller verpackt nicht automatisch manche dynamisch geladene Module
+- Lösung: Füge hidden-imports hinzu, z. B. `pyinstaller --onefile app.py --hidden-import some_module` oder erstelle eine spec‑Datei und ergänze.
+
+4) FTS5 nicht verfügbar in SQLite
+- Symptom: Suche funktioniert nicht mit FTS5 und fällt zurück auf LIKE
+- Hinweis: Windows‑Python hat meist FTS5; falls nicht, ist das FTS5‑Fallback bereits implementiert.
+
+5) Workflow schlägt fehl, weil ffmpeg nicht extrahiert werden kann
+- Prüfe den Schritt "Download ffmpeg" in Actions logs. Manchmal ändert sich die Struktur der ZIP (Unterordner). Ich kann den Workflow anpassen, wenn du mir die Logs zeigst.
+
+6) Antivirus markiert EXE als Malware
+- Signiere die EXE (Code Signing Certificate) oder lade die EXE vorher lokal hoch an eine verifizierte Quelle. False positives sind bei selbstgebauten EXEs leider häufig.
+
+
+Code Signing (optional, empfohlen für Releases)
+- Für geringere False‑Positives und mehr Vertrauen: erwirb ein Code Signing Zertifikat und signiere die EXE.
+- Windows: SignTool.exe (Teil des Windows SDK) oder SignTool via Publisher
+
+
+Nächste Schritte / Empfehlungen
+- Teste erstmal lokal: `python app.py` — das ist wertvoll, bevor du EXE‑Bündel baust.
+- Wenn der Actions‑Build fehlschlägt: sende mir die Log‑Abschnitte. Ich analysiere und gebe konkrete Fixes.
+- Wenn du willst, kann ich das Workflow‑Script weiter anpassen (z. B. robustere ffmpeg‑Suche, weitere Release‑Optionen, Signieren mithilfe eines Secret/Signer Action).
+
+
+Kontakt & Support
+Wenn du beim lokalen Build oder bei Workflow‑Fehlern Unterstützung brauchst, poste hier die Fehlerausgabe oder den Link zum fehlschlagenden Workflow‑Run. Ich helfe beim Debugging.
+
+
+---
+
+Repo: https://github.com/HitmanOG1/Notiz-Converter-App
