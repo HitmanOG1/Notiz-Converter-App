@@ -89,7 +89,7 @@ EXE (Windows) lokal erzeugen — Schritt für Schritt
 - Empfohlene Quellen (statische Builds):
   - https://www.gyan.dev/ffmpeg/builds/
   - https://ffmpeg.org/download.html
-- Entpacke und kopiere `ffmpeg.exe` ins Projektverzeichnis (oder merke dir den Pfad).
+- Entpacke das Archiv und kopiere die ffmpeg.exe in das Projektverzeichnis (oder merke dir den Pfad).
 
 3) EXE bauen (einfach)
 
@@ -103,7 +103,19 @@ Erläuterung wichtiger Flags:
 
 4) Ergebnis
 - Die fertige EXE liegt in `dist\NotizConverterApp.exe`.
-- Teste die EXE lokal: kopiere bei Bedarf eine ffmpeg.exe ins gleiche Verzeichnis oder passe die Einstellungen in der App an.
+- Teste die EXE lokal: kopiere bei Bedarf eine ffmpeg.exe ins gleiche Verzeichnis wie die EXE oder stelle sicher, dass ffmpeg im PATH ist.
+- Starte die EXE und prüfe: Editor öffnen, Notiz speichern, Konvertierung mit einer kurzen Testdatei.
+
+
+Optional: Icon einbinden
+- Wenn du eine .ico einbinden möchtest, erzeuge `assets/icon.ico` aus `assets/icon.svg`:
+
+   pip install cairosvg pillow
+   python tools/generate_icon.py
+
+- Beim Build mit PyInstaller kannst du das Icon angeben:
+
+   pyinstaller --onefile --icon=assets/icon.ico --add-data "ffmpeg.exe;." --noconfirm --name NotizConverterApp app.py
 
 
 GitHub Actions — CI Build & Artefakte
@@ -111,30 +123,20 @@ GitHub Actions — CI Build & Artefakte
 Was der Workflow macht
 - Läuft bei Push auf `main` oder `master`
 - Installiert Python, Abhängigkeiten und PyInstaller
-- Lädt einen statischen ffmpeg‑Build herunter (Workflow versucht, ffmpeg.exe zu finden)
+- Versucht, einen statischen ffmpeg‑Build herunterzuladen und ffmpeg.exe zu extrahieren
 - Baut mit PyInstaller eine Einzeldatei‑EXE
 - Packt EXE + ffmpeg in ein ZIP und erstellt einen Release‑Draft mit dem ZIP als Asset
 
 Logs & Artefakte ansehen
 1) Gehe zur Actions‑Seite des Repos: https://github.com/HitmanOG1/Notiz-Converter-App/actions
-2) Wähle den letzten Run der Workflow‑Anwendung `Build Windows EXE and Release`
+2) Wähle den letzten Run des Workflows `Build Windows EXE and Release`
 3) Öffne die Schritte und schaue dir die ausführlichen Logs an. Bei Fehlern kopiere die relevanten Logabschnitte hierher — ich helfe beim Interpretieren.
-4) Wenn der Workflow erfolgreich war, findest du das ZIP als Release‑Asset im Draft Release (Releases → Drafts) oder als herunterladbares Artefakt im Workflow‑Run (manchmal beide).
+4) Wenn der Workflow erfolgreich war, findest du das ZIP als Release‑Asset im Draft Release (Releases → Drafts) oder als herunterladbares Artefakt im Workflow‑Run.
 
 Tipps für Debugging von Actions‑Builds
 - Fehlender ffmpeg: Workflow konnte die ZIP nicht entpacken oder ffmpeg.exe nicht finden. Prüfe den Schritt "Download ffmpeg" in den Logs.
 - PyInstaller Fehlermeldungen: oft fehlen Module oder Hooks (z. B. Flet). Suche nach Tracebacks in den Logs. Häufige Lösung: explizite hidden‑imports oder zusätzliche Dateien via --add-data.
 - Antivirus / Windows Defender: kann die erzeugte EXE blockieren. Signieren hilft (siehe weiter unten).
-
-
-Icon erzeugen
-- Ein SVG‑Icon liegt in `assets/icon.svg`.
-- Falls du eine .ico brauchst, benutze das Script `tools/generate_icon.py` (benötigt cairosvg + pillow):
-
-   pip install cairosvg pillow
-   python tools/generate_icon.py
-
-- Das Script erzeugt `assets/icon.ico` (mehrere Auflösungen). Du kannst diese .ico dann z. B. mit PyInstaller via --icon=assets/icon.ico einbinden.
 
 
 Häufige Fehler & Troubleshooting
@@ -149,7 +151,7 @@ Häufige Fehler & Troubleshooting
 
 3) PyInstaller: fehlende Modules / "ModuleNotFoundError"
 - Ursache: PyInstaller verpackt nicht automatisch manche dynamisch geladene Module
-- Lösung: Füge hidden-imports hinzu, z. B. `pyinstaller --onefile app.py --hidden-import some_module` oder erstelle eine spec‑Datei und ergänze.
+- Lösung: Füge hidden-imports hinzu, z. B. `pyinstaller --onefile app.py --hidden-import modulename --add-data "ffmpeg.exe;." --name NotizConverterApp` oder erstelle eine spec‑Datei und ergänze.
 
 4) FTS5 nicht verfügbar in SQLite
 - Symptom: Suche funktioniert nicht mit FTS5 und fällt zurück auf LIKE
@@ -159,18 +161,22 @@ Häufige Fehler & Troubleshooting
 - Prüfe den Schritt "Download ffmpeg" in Actions logs. Manchmal ändert sich die Struktur der ZIP (Unterordner). Ich kann den Workflow anpassen, wenn du mir die Logs zeigst.
 
 6) Antivirus markiert EXE als Malware
-- Signiere die EXE (Code Signing Certificate) oder lade die EXE vorher lokal hoch an eine verifizierte Quelle. False positives sind bei selbstgebauten EXEs leider häufig.
+- Signiere die EXE (Code Signing Certificate) oder teste lokal/externe Maschinen; False‑Positives sind bei selbstgebauten EXEs häufig.
 
 
 Code Signing (optional, empfohlen für Releases)
 - Für geringere False‑Positives und mehr Vertrauen: erwirb ein Code Signing Zertifikat und signiere die EXE.
 - Windows: SignTool.exe (Teil des Windows SDK) oder SignTool via Publisher
 
+Signieren lokal (kurz):
+- Installiere Windows SDK (SignTool)
+- Beispiel: signtool sign /a /tr http://timestamp.digicert.com /td sha256 /fd sha256 "dist\NotizConverterApp.exe"
+
 
 Nächste Schritte / Empfehlungen
 - Teste erstmal lokal: `python app.py` — das ist wertvoll, bevor du EXE‑Bündel baust.
 - Wenn der Actions‑Build fehlschlägt: sende mir die Log‑Abschnitte. Ich analysiere und gebe konkrete Fixes.
-- Wenn du willst, kann ich das Workflow‑Script weiter anpassen (z. B. robustere ffmpeg‑Suche, weitere Release‑Optionen, Signieren mithilfe eines Secret/Signer Action).
+- Ich kann das Workflow‑Script weiter anpassen (z. B. robustere ffmpeg‑Suche, weitere Release‑Optionen, Signieren mithilfe eines Secret/Signer Action).
 
 
 Kontakt & Support
